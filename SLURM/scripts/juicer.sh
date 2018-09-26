@@ -107,13 +107,13 @@ else
     load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3" 
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/gpfs0/juicer/"
+    juiceDir="/staging/ess/csul/playground/software/juicer_example"
     # default queue, can also be set in options
     queue="commons"
     queue_time="1440"
     # default long queue, can also be set in options
-    long_queue="long"
-    long_queue_time="10080"
+    long_queue="largemem"
+    long_queue_time="1450"
 fi
 
 # size to split fastqs. adjust to match your needs. 4000000=1M reads per split
@@ -324,7 +324,8 @@ then
 fi
 
 threadstring="-t $threads"
-alloc_mem=$(($threads * 5000))
+#alloc_mem=$(($threads * 5000))
+alloc_mem=5000 # 5000 MB per cpu
 
 if [ $alloc_mem -gt 40000 ]
 then
@@ -411,9 +412,10 @@ else
 fi
 
 # Add header containing command executed and timestamp:
+echo "sbatch 1"
 jid=`sbatch <<- HEADER | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH -t 2
 	#SBATCH -c 1
 	#SBATCH -o $debugdir/head-%j.out
@@ -481,7 +483,7 @@ then
                 then	
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
-			#SBATCH -p $queue
+			##SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
 			#SBATCH -o $debugdir/split-%j.out
@@ -495,7 +497,7 @@ SPLITEND`
 		else
 		    jid=`sbatch <<- SPLITEND | egrep -o -e "\b[0-9]+$"
 			#!/bin/bash -l
-			#SBATCH -p $queue
+			##SBATCH -p $queue
 			#SBATCH -t $queue_time
 			#SBATCH -c 1
 			#SBATCH -o $debugdir/split-%j.out
@@ -563,9 +565,10 @@ SPLITEND`
 	fi
 
 	# count ligations
+   echo "Sbatch 2"
 	jid=`sbatch <<- CNTLIG |  egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		#SBATCH -p $queue
+		##SBATCH -p $queue
 		#SBATCH -t $queue_time
 		#SBATCH -c 1
 		#SBATCH -o $debugdir/count_ligation-%j.out
@@ -575,22 +578,25 @@ SPLITEND`
 		export usegzip=${usegzip}; export name=${name}; export name1=${name1}; export name2=${name2}; export ext=${ext}; export ligation=${ligation}; ${juiceDir}/scripts/countligations.sh
 		date
 CNTLIG`
+   echo "jid=$jid"
 	dependcount="$jid"
 	# align read1 fastq
 	touchfile1=${tmpdir}/${jname}1
 
+   echo "sbatch 3"
 	jid=`sbatch <<- ALGNR1 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		#SBATCH -p $queue
+		##SBATCH -p $queue
 		#SBATCH -o $debugdir/align1-%j.out
 		#SBATCH -e $debugdir/align1-%j.err
 		#SBATCH -t $queue_time
-		#SBATCH -n 1
+		##SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=$alloc_mem
+		##SBATCH --mem-per-cpu=$alloc_mem
+		#SBATCH --mem-per-cpu=2GB
 		#SBATCH -J "${groupname}_align1_${jname}"
-		#SBATCH --threads-per-core=1		
+		##SBATCH --threads-per-core=1		
 		${load_bwa}
 		# Align read1
 		date
@@ -620,20 +626,24 @@ CNTLIG`
 		fi
 		date
 ALGNR1`
-
+   #exit ##### REMOVEEEEE after sbatch 3 is fixed 
+   echo "jid = $jid"
 	dependalign="afterok:$jid:$dependcount"
+   echo "Line 625 dependalign=$dependalign"
 	# align read2 fastq
 	touchfile2=${tmpdir}/${jname}2
+   echo "sbatch 4"
 	jid=`sbatch <<- ALGNR2 | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		#SBATCH -p $queue
+		##SBATCH -p $queue
 		#SBATCH -o $debugdir/align2-%j.out
 		#SBATCH -e $debugdir/align2-%j.err
 		#SBATCH -t $queue_time
 		#SBATCH -n 1
 		#SBATCH -c $threads
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=$alloc_mem
+		##SBATCH --mem-per-cpu=$alloc_mem
+		#SBATCH --mem-per-cpu=2GB
 		#SBATCH -J "${groupname}_align2_${jname}"
 		#SBATCH --threads-per-core=1		
 		${load_bwa}
@@ -667,15 +677,18 @@ ALGNR1`
 ALGNR2`
 
 	dependalign="$dependalign:$jid"
+   echo "Submitted job $dependalign:$jid"
+
 
 	touchfile3=${tmpdir}/${jname}3
 	# wait for top two, merge
+   echo "sbatch 5"
 	jid=`sbatch <<- MRGALL | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
 		#SBATCH -p $long_queue
 		#SBATCH -o $debugdir/merge-%j.out
 		#SBATCH -e $debugdir/merge-%j.err
-		#SBATCH --mem-per-cpu=14G
+		#SBATCH --mem-per-cpu=14G ## too much memory for USC HPC
 		#SBATCH -t $queue_time
 		#SBATCH -c 8 
 		#SBATCH --ntasks=1
@@ -777,6 +790,8 @@ ALGNR2`
 		touch $touchfile3
 		date
 MRGALL`
+   echo "jid=$jid" # CS
+
 
 	dependmerge="${dependmerge}:${jid}"
 	ARRAY[countjobs]="${groupname}_merge_${jname}"
@@ -803,12 +818,13 @@ MRGALL`
 	msg="***! Error in job ${ARRAY[$i]}  Type squeue -j ${JIDS[$i]} to see what happened"
 	
 	# check that alignment finished successfully
+   echo "sbatch 6"
 	jid=`sbatch <<- EOF
 		#!/usr/bin/bash
 		#SBATCH -o $debugdir/aligncheck-%j.out
 		#SBATCH -e $debugdir/aligncheck-%j.err
 		#SBATCH -t $queue_time
-		#SBATCH -p $queue
+		##SBATCH -p $queue
 		#SBATCH -J "${groupname}_check"
 		#SBATCH -d $dependmerge
 		date
@@ -820,7 +836,9 @@ MRGALL`
 		fi
 		date
 EOF`
+   echo "jid(pre)=$jid"
 	jid=$(echo $jid | egrep -o -e "\b[0-9]+$")
+   echo "jid(post)=$jid"
 	dependmergecheck="${dependmerge}:${jid}"
     done
 fi  # Not in merge, dedup,  or final stage, i.e. need to split and align files.
@@ -840,20 +858,21 @@ then
     
     if [ $isVoltron -eq 1 ]
     then  
-	sbatch_time="#SBATCH -t 10080"
+	sbatch_time="#SBATCH -t 1450" # magic numbers!!!
     else
 	sbatch_time="#SBATCH -t 1440"
     fi
 
 
-
+    echo "sbatch 7"
     jid=`sbatch <<- EOF
 		#!/usr/bin/bash
 		#SBATCH -o $debugdir/fragmerge-%j.out
 		#SBATCH -e $debugdir/fragmerge-%j.err
-		#SBATCH --mem 256000
+		##SBATCH --mem 256000 # Magic numbers!!!
+		#SBATCH --mem $alloc_mem
 		${sbatch_time}
-		#SBATCH -p $long_queue
+		##SBATCH -p $long_queue
 		#SBATCH -c 8
 		#SBATCH -J "${groupname}_fragmerge"
 		${sbatch_wait}
@@ -890,7 +909,7 @@ then
 		fi
 		date
 EOF`
-
+    echo "$jid"
     jid=$(echo $jid | egrep -o -e "\b[0-9]+$")
     dependmrgsrt="afterok:$jid"
 fi
@@ -909,7 +928,7 @@ then
     # After dedup is done, this job will be released. 
     guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH -o $debugdir/dedupguard-%j.out
 	#SBATCH -e $debugdir/dedupguard-%j.err
 	#SBATCH -t 10
@@ -926,7 +945,7 @@ DEDUPGUARD`
     # if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
     jid=`sbatch <<- DEDUP | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/dedup-%j.out
 	#SBATCH -e $debugdir/dedup-%j.err
@@ -959,7 +978,7 @@ DEDUP`
     #Wait for all parts of split_rmdups to complete:
     jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH -o $debugdir/post_dedup-%j.out
 	#SBATCH -e $debugdir/post_dedup-%j.err
 	#SBATCH -t 100
@@ -991,7 +1010,7 @@ if [ -n "$earlyexit" ]
 then
     jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$" 
 	#!/bin/bash
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/fincln1-%j.out
 	#SBATCH -e $debugdir/fincln1-%j.err
@@ -1016,7 +1035,7 @@ if [ -z $postproc ]
     awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash -l\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH -o $debugdir/dupcheck-%j.out
 	#SBATCH -e $debugdir/dupcheck-%j.err
 	#SBATCH -t $queue_time
@@ -1033,15 +1052,16 @@ if [ -z $postproc ]
         date                                                                                                           
 DUPCHECK`
     sbatch_wait="#SBATCH -d afterok:$jid"
+    echo "sbatch 8"
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		#SBATCH -p $long_queue
+		##SBATCH -p $long_queue
 		#SBATCH -o $debugdir/stats-%j.out
 		#SBATCH -e $debugdir/stats-%j.err
 		#SBATCH -t $long_queue_time
 		#SBATCH -c 1
 		#SBATCH --ntasks=1
-		#SBATCH --mem-per-cpu=6G
+		#SBATCH --mem-per-cpu=6G # magic number
 		#SBATCH -J "${groupname}_stats"
 		${sbatch_wait}
 
@@ -1072,8 +1092,9 @@ DUPCHECK`
 		date
 STATS`
 
+    echo "jid=$jid"
     dependstats="afterok:$jid"
-
+   echo "sbatch 9"
     jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
@@ -1101,9 +1122,10 @@ STATS`
 fi
 	date
 HIC`
-
+    echo "jid = $jid"
     dependhic="afterok:$jid"
-
+   
+    echo "sbatch 10"
     jid=`sbatch <<- HIC30 | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH -p $long_queue
@@ -1131,7 +1153,7 @@ HIC`
 	fi
 	date
 HIC30`
-
+    echo "jid=$jid"
     dependhic30="${dependhic}:$jid"
     sbatch_wait="#SBATCH -d $dependhic30"
 else
@@ -1146,7 +1168,7 @@ then
     fi
     jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	${sbatch_req}
 	#SBATCH -o $debugdir/hiccups_wrap-%j.out
@@ -1175,7 +1197,7 @@ fi
 
 jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=8G
 	#SBATCH -o $debugdir/arrowhead_wrap-%j.out
 	#SBATCH -e $debugdir/arrowhead_wrap-%j.err
@@ -1197,7 +1219,7 @@ dependarrows="${dependhiccups}:$jid"
 
 jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash
-	#SBATCH -p $queue
+	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/fincln-%j.out
 	#SBATCH -e $debugdir/fincln-%j.err
