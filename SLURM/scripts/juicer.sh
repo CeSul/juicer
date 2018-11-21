@@ -102,12 +102,12 @@ then
     long_queue_time="3600"
 else
     isVoltron=1
-    export PATH=/gpfs0/biobuild/biobuilds-2016.11/bin:$PATH
+    export PATH=/staging/ess/csul/playground/software/bwa/src/bwa:$PATH
     unset MALLOC_ARENA_MAX
-    load_gpu="CUDA_VISIBLE_DEVICES=0,1,2,3"
+    load_gpu="source /usr/usc/cuda/9.0/setup.sh"
     # Juicer directory, contains scripts/, references/, and restriction_sites/
     # can also be set in options via -D
-    juiceDir="/staging/ess/csul/playground/software/juicer_example"
+    juiceDir="/staging/ess/csul/playground/software/myJuicerDir"
     # default queue, can also be set in options
     queue="commons"
     queue_time="2880"
@@ -551,7 +551,7 @@ SPLITEND`
                 read1=${splitdir}"/*${read1str}*.fastq"
 	    done
 
-	    srun -c 1 -p "$queue" -t 1 -o $debugdir/wait-%j.out -e $debugdir/wait-%j.err -d $dependsplit -J "${groupname}_wait" sleep 1
+	    srun -c 1 -t 1 -o $debugdir/wait-%j.out -e $debugdir/wait-%j.err -d $dependsplit -J "${groupname}_wait" sleep 1
         else
             cp -rs ${fastqdir} ${splitdir}
             wait
@@ -1309,16 +1309,10 @@ else
     sbatch_wait=""
 fi
 
-if [ $isRice -eq 1 ] || [ $isVoltron -eq 1 ]
-then
-    if [  $isRice -eq 1 ]
-    then
-	sbatch_req="#SBATCH --gres=gpu:kepler:1"
-    fi
     jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH --mem-per-cpu=2G
-	${sbatch_req}
+   #SBATCH --gres=gpu:1
 	#SBATCH -o $debugdir/hiccups_wrap-%j.out
 	#SBATCH -e $debugdir/hiccups_wrap-%j.err
 	#SBATCH -t $queue_time
@@ -1341,9 +1335,6 @@ then
 	date
 HICCUPS`
     dependhiccups="afterok:$jid"
-else
-    dependhiccups="afterok"
-fi
 
 jid=`sbatch <<- ARROWS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
