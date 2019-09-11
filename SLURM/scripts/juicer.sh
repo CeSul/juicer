@@ -345,12 +345,9 @@ else
     threadstring="-t $threads"
 fi
 
+threadstring="-t $threads"
+#alloc_mem=$(($threads * 5000))
 alloc_mem=5000 # 5000 MB per cpu
-
-if [ $alloc_mem -gt 50000 ]
-then
-    alloc_mem=50000
-fi
 
 if [ $isBCM -eq 1 ]
 then
@@ -551,6 +548,7 @@ SPLITEND`
                 read1=${splitdir}"/*${read1str}*.fastq"
 	    done
 
+
 	    srun -c 1 -t 1 -o $debugdir/wait-%j.out -e $debugdir/wait-%j.err -d $dependsplit -J "${groupname}_wait" sleep 1
         else
             cp -rs ${fastqdir} ${splitdir}
@@ -664,7 +662,6 @@ CNTLIG`
 		fi
 		date
 ALGNR1`
-   #exit ##### REMOVEEEEE after sbatch 3 is fixed
    echo "jid = $jid"
 	dependalign="afterok:$jid:$dependcount"
    echo "Line 625 dependalign=$dependalign"
@@ -717,6 +714,7 @@ ALGNR2`
 
 	dependalign="$dependalign:$jid"
    echo "Submitted job $dependalign:$jid"
+
 
 
 	if [ $isVoltron -eq 1 ]
@@ -1236,7 +1234,6 @@ FINCLN1`
     echo "jid=$jid"
     dependstats="afterok:$jid"
     echo "sbatch 9"
-
     jid=`sbatch <<- HIC | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash
 	#SBATCH -p $long_queue
@@ -1312,7 +1309,7 @@ fi
     jid=`sbatch <<- HICCUPS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
 	#SBATCH --mem-per-cpu=2G
-   #SBATCH --gres=gpu:1
+    #SBATCH --gres=gpu:1
 	#SBATCH -o $debugdir/hiccups_wrap-%j.out
 	#SBATCH -e $debugdir/hiccups_wrap-%j.err
 	#SBATCH -t $queue_time
