@@ -903,7 +903,7 @@ then
 
     if [ $isVoltron -eq 1 ]
     then
-	sbatch_time="#SBATCH -t 1450" # magic numbers!!!
+	sbatch_time="#SBATCH -t 1440" # magic numbers!!!
     else
 	sbatch_time="#SBATCH -t 1440"
     fi
@@ -913,7 +913,7 @@ then
 	sbatch_mem_alloc="#SBATCH --mem=80G"
     else
 	sbatch_cpu_alloc="#SBATCH -c 8"
-	sbatch_mem_alloc="#SBATCH --mem=64G"
+	sbatch_mem_alloc="#SBATCH --mem=60G"
     fi
 
     echo "sbatch 7"
