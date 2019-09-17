@@ -980,7 +980,6 @@ then
     # After dedup is done, this job will be released.
     guardjid=`sbatch <<- DEDUPGUARD | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	##SBATCH -p $queue
 	#SBATCH -o $debugdir/dedupguard-%j.out
 	#SBATCH -e $debugdir/dedupguard-%j.err
 	#SBATCH -t 10
@@ -1034,7 +1033,6 @@ DEDUP`
     #Wait for all parts of split_rmdups to complete:
     jid=`sbatch <<- MSPLITWAIT | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	##SBATCH -p $queue
 	#SBATCH -o $debugdir/post_dedup-%j.out
 	#SBATCH -e $debugdir/post_dedup-%j.err
 	#SBATCH -t 100
@@ -1068,7 +1066,6 @@ if [ -n "$earlyexit" ]
 then
     jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash
-	##SBATCH -p $queue
 	#SBATCH --mem-per-cpu=2G
 	#SBATCH -o $debugdir/fincln1-%j.out
 	#SBATCH -e $debugdir/fincln1-%j.err
@@ -1090,10 +1087,9 @@ if [ -z $postproc ]
     then
     # Check that dedupping worked properly
     # in ideal world, we would check this in split_rmdups and not remove before we know they are correct
-    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n#SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
+    awkscript='BEGIN{sscriptname = sprintf("%s/.%s_rmsplit.slurm", debugdir, groupname);}NR==1{if (NF == 2 && $1 == $2 ){print "Sorted and dups/no dups files add up"; printf("#!/bin/bash\n#SBATCH -o %s/dup-rm.out\n#SBATCH -e %s/dup-rm.err\n##SBATCH -p %s\n#SBATCH -J %s_msplit0\n#SBATCH -d singleton\n#SBATCH -t 1440\n#SBATCH -c 1\n#SBATCH --ntasks=1\ndate;\nrm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt;rm %s/split*;\ndate\n", debugdir, debugdir, queue, groupname, dir, dir, dir, dir) > sscriptname; sysstring = sprintf("sbatch %s", sscriptname); system(sysstring);close(sscriptname); }else{print "Problem"; print "***! Error! The sorted file and dups/no dups files do not add up, or were empty."}}'
     jid=`sbatch <<- DUPCHECK | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	##SBATCH -p $queue
 	#SBATCH -o $debugdir/dupcheck-%j.out
 	#SBATCH -e $debugdir/dupcheck-%j.err
 	#SBATCH -t $queue_time
@@ -1114,7 +1110,6 @@ DUPCHECK`
 
     jid=`sbatch <<- PRESTATS | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
 	#SBATCH -o $debugdir/prestats-%j.out
 	#SBATCH -e $debugdir/prestats-%j.err
 	#SBATCH -t $queue_time
@@ -1141,7 +1136,6 @@ PRESTATS`
 
     jid=`sbatch <<- STATS | egrep -o -e "\b[0-9]+$"
 		#!/bin/bash -l
-		##SBATCH -p $long_queue
 		#SBATCH -o $debugdir/stats-%j.out
 		#SBATCH -e $debugdir/stats-%j.err
 		#SBATCH -t $long_queue_time
@@ -1210,7 +1204,6 @@ CONCATFILES`
     then
 	jid=`sbatch <<- FINCLN1 | egrep -o -e "\b[0-9]+$"
 	#!/bin/bash -l
-	#SBATCH -p $queue
 	#SBATCH --mem=2G
 	#SBATCH -o $debugdir/fincln1-%j.out
 	#SBATCH -e $debugdir/fincln1-%j.err
@@ -1218,7 +1211,7 @@ CONCATFILES`
 	#SBATCH -c 1
 	#SBATCH --ntasks=1
 	#SBATCH -J "${groupname}_prep_done"
-        #SBATCH --mail-type=END,FAIL
+    #SBATCH --mail-type=END,FAIL
 	${sbatch_wait1}
         $userstring
 
